@@ -5,11 +5,21 @@ import yfinance as yf
 
 st.set_page_config(page_title="GEM - podgląd ETF-ów", layout="wide")
 
-DEFAULT_TICKERS = "CNDX.L, EXUS.L, XMME.L, IGLN.L, IB01.L"
+# Grupy tickerów (nazwa grupy -> tickery na Yahoo po przecinku).
+# Benchmark: tylko pierwszy ticker z listy.
+DEFAULT_GROUPS = {
+    "Benchmark (akcje świata)": "IWDA.L",
+    "Indeksy akcyjne": "CNDX.L, EXUS.L, XMME.L",
+    "Złoto i obligacje": "IGLN.L, IB01.L",
+}
+G_BENCH, G_EQ, G_SAFE = DEFAULT_GROUPS  # klucze słownika w tej kolejności
+
 # Opisy tickerów (ticker na Yahoo -> opis). Dla tickerów spoza słownika
 # aplikacja próbuje pobrać nazwę z Yahoo.
 TICKER_INFO = {
+    "IWDA.L": "iShares Core MSCI World UCITS ETF (Acc), USD - benchmark: akcje rynków rozwiniętych",
     "CNDX.L": "iShares NASDAQ 100 UCITS ETF (Acc), USD - Nasdaq-100, replikacja fizyczna",
+    "N100.L": "iShares NASDAQ 100 Swap UCITS ETF (Acc), USD - Nasdaq-100, replikacja syntetyczna (swap)",
     "EXUS.L": "Xtrackers MSCI World ex USA UCITS ETF 1C, USD - rynki rozwinięte bez USA",
     "XMME.L": "Xtrackers MSCI Emerging Markets UCITS ETF 1C, USD - rynki wschodzące",
     "IGLN.L": "iShares Physical Gold ETC, USD - złoto fizyczne",
@@ -25,6 +35,8 @@ PRESETS = {
     "3 lata": pd.DateOffset(years=3),
     "5 lat": pd.DateOffset(years=5),
 }
+PALETTE = ["#4c78a8", "#f58518", "#54a24b", "#e45756", "#b279a2",
+           "#9d755d", "#eeca3b", "#72b7b2"]
 
 
 @st.cache_data(ttl=3600, show_spinner="Pobieram notowania z Yahoo Finance...")
@@ -45,6 +57,18 @@ def currency(ticker: str) -> str:
         return str(yf.Ticker(ticker).fast_info["currency"])
     except Exception:
         return "?"
+
+
+@st.cache_data(ttl=86400)
+def yahoo_name(ticker: str) -> str:
+    try:
+        return str(yf.Ticker(ticker).get_info().get("longName", ""))
+    except Exception:
+        return ""
+
+
+def describe(ticker: str) -> str:
+    return TICKER_INFO.get(ticker) or yahoo_name(ticker) or "-"
 
 
 @st.cache_data(ttl=3600)
@@ -82,24 +106,21 @@ def convert(prices: pd.DataFrame, target: str):
     return out, ccy, notes
 
 
-@st.cache_data(ttl=86400)
-def yahoo_name(ticker: str) -> str:
-    try:
-        return str(yf.Ticker(ticker).get_info().get("longName", ""))
-    except Exception:
-        return ""
-
-
-def describe(ticker: str) -> str:
-    return TICKER_INFO.get(ticker) or yahoo_name(ticker) or "-"
+def parse(text: str) -> tuple:
+    return tuple(dict.fromkeys(t.strip().upper() for t in text.split(",") if t.strip()))
 
 
 # ---------------------------------------------------------------- panel boczny
 with st.sidebar:
     st.header("Ustawienia")
-    raw_text = st.text_input("Tickery (po przecinku)", DEFAULT_TICKERS)
-    tickers = tuple(dict.fromkeys(
-        t.strip().upper() for t in raw_text.split(",") if t.strip()))
+    groups = {}
+    for group, default in DEFAULT_GROUPS.items():
+        label = f"{group} - tickery po przecinku" if group != G_BENCH \
+            else f"{group} - jeden ticker"
+        groups[group] = parse(st.text_input(label, default))
+    groups[G_BENCH] = groups[G_BENCH][:1]
+    tickers = tuple(dict.fromkeys(t for ts in groups.values() for t in ts))
+
     target = st.selectbox("Waluta wyceny", CURRENCY_OPTIONS, index=1,
                           help="Ceny funduszy są przeliczane dziennym kursem z Yahoo.")
     if st.button("Odśwież dane"):
@@ -123,6 +144,7 @@ prices = prices[[t for t in tickers if t not in missing]]
 if prices.empty:
     st.error("Żaden ticker nie zwrócił danych.")
     st.stop()
+
 shown = {t: currency(t) for t in prices.columns}
 if target != "Bez przeliczania":
     try:
@@ -184,30 +206,87 @@ if common:
 
 base = sub.apply(lambda s: s.dropna().iloc[0])
 returns = (sub / base - 1) * 100
+avail = {g: [t for t in ts if t in sub.columns] for g, ts in groups.items()}
+color = {t: PALETTE[i % len(PALETTE)] for i, t in enumerate(sub.columns)}
 
-st.title("Zwrot narastający ETF-ów")
+
+def total_ret(t: str) -> float:
+    return float(returns[t].dropna().iloc[-1])
+
+
+def make_fig(cols, bold=(), height=420):
+    fig = go.Figure()
+    for t in cols:
+        y = sub[t] / base[t] * 100 if log_scale else returns[t]
+        fig.add_trace(go.Scatter(
+            x=sub.index, y=y, name=t, mode="lines",
+            line=dict(width=3.5 if t in bold else 1.8, color=color[t])))
+    fig.update_layout(yaxis_title="wartość (start = 100)" if log_scale else "%",
+                      hovermode="x unified", height=height,
+                      margin=dict(l=10, r=10, t=10, b=10),
+                      legend=dict(orientation="h", y=-0.2))
+    if log_scale:
+        fig.update_yaxes(type="log")
+    return fig
+
+
+def best_caption(cols, what):
+    if not cols:
+        return
+    best = max(cols, key=total_ret)
+    st.caption(f"{what}: najlepszy w okresie to {best} ({total_ret(best):+.1f}%).")
+
+
+# ---------------------------------------------------------------- układ
+st.title("Giełda czy aktywa bezpieczne?")
 st.caption(f"Zakres: {sub.index[0]:%Y-%m-%d} - {sub.index[-1]:%Y-%m-%d} "
            f"(data końcowa: {end:%Y-%m-%d}). "
            f"Ostatnie dostępne notowanie w danych: {data_max:%Y-%m-%d}.")
 
-fig = go.Figure()
-for t in returns.columns:
-    fig.add_trace(go.Scatter(x=returns.index, y=returns[t], name=t, mode="lines"))
-fig.update_layout(yaxis_title="%", hovermode="x unified",
-                  margin=dict(l=10, r=10, t=10, b=10), height=520,
-                  legend=dict(orientation="h", y=-0.15))
-if log_scale:
-    # skala log wymaga dodatnich wartości: pokazujemy wartość portfela (start = 100)
-    fig = go.Figure()
-    for t in sub.columns:
-        fig.add_trace(go.Scatter(x=sub.index, y=sub[t] / base[t] * 100, name=t, mode="lines"))
-    fig.update_yaxes(type="log")
-    fig.update_layout(yaxis_title="wartość (start = 100)", hovermode="x unified",
-                      margin=dict(l=10, r=10, t=10, b=10), height=520,
-                      legend=dict(orientation="h", y=-0.15))
-st.plotly_chart(fig, width="stretch")
+# 1) benchmark vs złoto i obligacje
+bench = avail[G_BENCH][0] if avail[G_BENCH] else None
+safe = avail[G_SAFE]
+st.subheader("Benchmark vs złoto i obligacje")
+if bench and safe:
+    st.plotly_chart(make_fig([bench] + safe, bold=(bench,)), width="stretch")
+    r_bench = total_ret(bench)
+    best_safe = max(safe, key=total_ret)
+    r_safe = total_ret(best_safe)
+    safe_txt = ", ".join(f"{t} {total_ret(t):+.1f}%" for t in safe)
+    if r_bench > r_safe:
+        st.success(f"📈 **Wygrała giełda.** {bench}: {r_bench:+.1f}% vs najlepsze "
+                   f"aktywo bezpieczne {best_safe}: {r_safe:+.1f}% ({safe_txt}).")
+    else:
+        st.warning(f"🛡️ **Wygrały aktywa bezpieczne.** Najlepsze: {best_safe} "
+                   f"{r_safe:+.1f}% vs {bench}: {r_bench:+.1f}% ({safe_txt}).")
+    st.caption("Reguła: giełda wygrywa, jeśli zwrot benchmarku w wybranym okresie "
+               "jest wyższy niż zwrot najlepszego z aktywów bezpiecznych.")
+else:
+    st.info("Brak danych dla benchmarku lub aktywów bezpiecznych. "
+            "Sprawdź tickery w panelu bocznym.")
+
+# 2) dwa wykresy obok siebie
+left, right = st.columns(2)
+with left:
+    st.subheader("Indeksy akcyjne")
+    if avail[G_EQ]:
+        st.plotly_chart(make_fig(avail[G_EQ]), width="stretch")
+        best_caption(avail[G_EQ], "Akcje")
+    else:
+        st.info("Brak danych dla indeksów akcyjnych.")
+with right:
+    st.subheader("Złoto i obligacje")
+    if safe:
+        st.plotly_chart(make_fig(safe), width="stretch")
+        best_caption(safe, "Aktywa bezpieczne")
+    else:
+        st.info("Brak danych dla złota i obligacji.")
 
 # ---------------------------------------------------------------- tabela
+group_of = {}
+for g, ts in avail.items():
+    for t in ts:
+        group_of.setdefault(t, g)
 rows = []
 for c in sub.columns:
     s = sub[c].dropna()
@@ -215,6 +294,7 @@ for c in sub.columns:
     last = full.asof(end)
     row = {
         "Ticker": c,
+        "Grupa": group_of.get(c, "-"),
         "Opis": describe(c),
         "Waluta": shown.get(c, "?"),
         "Zwrot w zakresie %": (s.iloc[-1] / s.iloc[0] - 1) * 100,
