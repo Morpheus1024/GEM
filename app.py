@@ -17,12 +17,12 @@ G_BENCH, G_EQ, G_SAFE = DEFAULT_GROUPS  # klucze słownika w tej kolejności
 # Opisy tickerów (ticker na Yahoo -> opis). Dla tickerów spoza słownika
 # aplikacja próbuje pobrać nazwę z Yahoo.
 TICKER_INFO = {
-    "IWDA.L": "iShares Core MSCI World UCITS ETF (Acc), USD - benchmark: akcje rynków rozwiniętych",
-    "CNDX.L": "iShares NASDAQ 100 UCITS ETF (Acc), USD - Nasdaq-100, replikacja fizyczna",
-    "XUSE.AS": "iShares MSCI World ex-USA UCITS ETF (Acc), USD - rynki rozwinięte bez USA",
-    "IS3N.DE": "iShares Core MSCI EM IMI UCITS ETF (Acc), USD - rynki wschodzące",
-    "IGLN.L": "iShares Physical Gold ETC, USD - złoto fizyczne",
-    "IB01.L": "iShares $ Treasury Bond 0-1yr UCITS ETF (Acc), USD - krótkie obligacje USA (gotówka)",
+    "IWDA.L":  "benchmark - rynki rozwinięte - iShares Core MSCI World UCITS ETF (Acc), USD",
+    "CNDX.L":  "Nasdaq 100 - iShares NASDAQ 100 UCITS ETF (Acc), USD",
+    "XUSE.AS": "rynki rozwinięte ex-US - iShares MSCI World ex-USA UCITS ETF (Acc), USD",
+    "IS3N.DE": "rynki wschodzące - iShares Core MSCI EM IMI UCITS ETF (Acc), USD",
+    "IGLN.L":  "złoto fizyczne - iShares Physical Gold ETC, USD",
+    "IB01.L":  "krótkie obligacje USA - iShares $ Treasury Bond 0-1yr UCITS ETF (Acc), USD",
 }
 HISTORY_START = "2000-01-01"
 CURRENCY_OPTIONS = ["Bez przeliczania", "USD", "EUR", "PLN"]
