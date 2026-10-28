@@ -9,7 +9,7 @@ st.set_page_config(page_title="GEM - podgląd ETF-ów", layout="wide")
 # Benchmark: tylko pierwszy ticker z listy.
 DEFAULT_GROUPS = {
     "Benchmark (akcje świata)": "IWDA.L",
-    "Indeksy akcyjne": "CNDX.L, EXUS.L, XMME.L",
+    "Indeksy akcyjne": "CNDX.L, XUSE.AS, IS3D.DE",
     "Złoto i obligacje": "IGLN.L, IB01.L",
 }
 G_BENCH, G_EQ, G_SAFE = DEFAULT_GROUPS  # klucze słownika w tej kolejności
@@ -20,8 +20,8 @@ TICKER_INFO = {
     "IWDA.L": "iShares Core MSCI World UCITS ETF (Acc), USD - benchmark: akcje rynków rozwiniętych",
     "CNDX.L": "iShares NASDAQ 100 UCITS ETF (Acc), USD - Nasdaq-100, replikacja fizyczna",
     "N100.L": "iShares NASDAQ 100 Swap UCITS ETF (Acc), USD - Nasdaq-100, replikacja syntetyczna (swap)",
-    "EXUS.L": "Xtrackers MSCI World ex USA UCITS ETF 1C, USD - rynki rozwinięte bez USA",
-    "XMME.L": "Xtrackers MSCI Emerging Markets UCITS ETF 1C, USD - rynki wschodzące",
+    "XUSE.AS": "iShares MSCI World ex-USA UCITS ETF (Acc), USD - rynki rozwinięte bez USA",
+    "IS3D.DE": "iShares Core MSCI EM IMI UCITS ETF (Acc), USD - rynki wschodzące",
     "IGLN.L": "iShares Physical Gold ETC, USD - złoto fizyczne",
     "IB01.L": "iShares $ Treasury Bond 0-1yr UCITS ETF (Acc), USD - krótkie obligacje USA (gotówka)",
 }
